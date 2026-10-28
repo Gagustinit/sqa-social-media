@@ -56,6 +56,23 @@ exports[`App - Home deve renderizar o número de posts corretamente de acordo co
             Content 1
           </p>
           <div
+            data-testid="post-reactions"
+            style="display: flex; gap: 1rem; margin-bottom: 1rem; font-size: 0.875rem; color: var(--foreground);"
+          >
+            <span
+              aria-label="10 curtidas"
+              data-testid="post-likes"
+            >
+              👍 10
+            </span>
+            <span
+              aria-label="2 descurtidas"
+              data-testid="post-dislikes"
+            >
+              👎 2
+            </span>
+          </div>
+          <div
             style="display: flex; justify-content: flex-end; align-items: center; margin-top: 1rem;"
           >
             <button
@@ -86,6 +103,23 @@ exports[`App - Home deve renderizar o número de posts corretamente de acordo co
           >
             Content 2
           </p>
+          <div
+            data-testid="post-reactions"
+            style="display: flex; gap: 1rem; margin-bottom: 1rem; font-size: 0.875rem; color: var(--foreground);"
+          >
+            <span
+              aria-label="5 curtidas"
+              data-testid="post-likes"
+            >
+              👍 5
+            </span>
+            <span
+              aria-label="1 descurtidas"
+              data-testid="post-dislikes"
+            >
+              👎 1
+            </span>
+          </div>
           <div
             style="display: flex; justify-content: flex-end; align-items: center; margin-top: 1rem;"
           >

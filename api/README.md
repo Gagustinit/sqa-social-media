@@ -170,8 +170,8 @@ Autenticação:
 
 Posts:
 
-- `GET /posts`
-- `GET /posts/liked`
+- `GET /posts` (cada post inclui `reactions: { likes, dislikes }`)
+- `GET /posts/liked` (cada post inclui `reactions: { likes, dislikes }`)
 - `POST /posts/{postId}/like`
 
 *Exemplo:*
