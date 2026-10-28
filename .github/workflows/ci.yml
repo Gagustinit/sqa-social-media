@@ -1,0 +1,184 @@
+name: CI
+
+# Esteira de Integração Contínua.
+# Disparada obrigatoriamente sempre que um Pull Request com destino à
+# branch main for aberto, atualizado (novos commits) ou reaberto.
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Testes de caixa-branca da API (unidade / integração) - Java + Maven
+  # ---------------------------------------------------------------------------
+  api-tests:
+    name: API - testes de unidade e integração
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Instalar dependências e executar testes (JUnit + H2 em memória)
+        working-directory: api
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean test
+
+  # ---------------------------------------------------------------------------
+  # Testes de caixa-branca do Client (unidade / integração) - Node + Jest
+  # ---------------------------------------------------------------------------
+  client-tests:
+    name: Client - testes de unidade e integração
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: client
+        run: npm ci
+
+      - name: Executar testes (Jest + Testing Library)
+        working-directory: client
+        run: npm run test:coverage -- --watchAll=false
+
+  # ---------------------------------------------------------------------------
+  # Testes de caixa-preta (E2E + API) - sobe MySQL, API e Client e roda Playwright
+  # ---------------------------------------------------------------------------
+  e2e-tests:
+    name: E2E e API - testes de caixa-preta (Playwright)
+    runs-on: ubuntu-latest
+    needs: [api-tests, client-tests]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: sqa_social_media
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            e2e/package-lock.json
+
+      - name: Instalar dependências da API
+        working-directory: api
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests dependency:go-offline
+
+      - name: Instalar dependências do Client
+        working-directory: client
+        run: npm ci
+
+      - name: Instalar dependências do Playwright e do navegador
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Iniciar a API (Spring Boot + MySQL)
+        working-directory: api
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/sqa_social_media?allowPublicKeyRetrieval=true&useSSL=false
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
+        run: |
+          ./mvnw -B spring-boot:run > ../api.log 2>&1 &
+          for i in {1..60}; do
+            if curl --fail --silent "http://localhost:8080/posts?limit=1&skip=0" > /dev/null; then
+              echo "API no ar"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API não iniciou a tempo. Log:"
+          cat ../api.log
+          exit 1
+
+      - name: Build do Client
+        working-directory: client
+        env:
+          NEXT_PUBLIC_BASE_URL: http://localhost:8080
+        run: npm run build
+
+      - name: Iniciar o Client (Next.js)
+        working-directory: client
+        env:
+          NEXT_PUBLIC_BASE_URL: http://localhost:8080
+        run: |
+          npm run start > ../client.log 2>&1 &
+          for i in {1..60}; do
+            if curl --fail --silent http://localhost:3000 > /dev/null; then
+              echo "Client no ar"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Client não iniciou a tempo. Log:"
+          cat ../client.log
+          exit 1
+
+      - name: Executar testes E2E e de API (Playwright)
+        working-directory: e2e
+        run: npm test -- --project=chromium
+
+      - name: Publicar relatório do Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Logs da aplicação (em caso de falha)
+        if: failure()
+        run: |
+          echo "----- api.log -----"; tail -n 100 api.log || true
+          echo "----- client.log -----"; tail -n 100 client.log || true
