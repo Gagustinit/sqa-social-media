@@ -25,8 +25,20 @@ describe("App - Home", () => {
     const mockResponse = {
       data: {
         posts: [
-          { id: 1, title: "Post 1", body: "Content 1", liked: false },
-          { id: 2, title: "Post 2", body: "Content 2", liked: false },
+          {
+            id: 1,
+            title: "Post 1",
+            body: "Content 1",
+            liked: false,
+            reactions: { likes: 10, dislikes: 2 },
+          },
+          {
+            id: 2,
+            title: "Post 2",
+            body: "Content 2",
+            liked: false,
+            reactions: { likes: 5, dislikes: 1 },
+          },
         ],
       },
     };

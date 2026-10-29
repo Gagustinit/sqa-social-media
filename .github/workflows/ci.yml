@@ -58,7 +58,7 @@ jobs:
 
       - name: Instalar dependências
         working-directory: client
-        run: npm ci
+        run: npm install
 
       - name: Executar testes (Jest + Testing Library)
         working-directory: client
@@ -114,12 +114,12 @@ jobs:
 
       - name: Instalar dependências do Client
         working-directory: client
-        run: npm ci
+        run: npm install
 
       - name: Instalar dependências do Playwright e do navegador
         working-directory: e2e
         run: |
-          npm ci
+          npm install
           npx playwright install --with-deps chromium
 
       - name: Iniciar a API (Spring Boot + MySQL)
